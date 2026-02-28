@@ -75,10 +75,18 @@ print(g1.grad().weights_to_list()) # [1.0, 0.0, 1.0, 0.0]
 
 ### Python
 
-Install the Python bindings with
+Install from source (recommended):
 
 ```
-pip install gtn
+git clone https://github.com/gtn-org/gtn.git
+cd gtn
+python -m pip install ./bindings/python
+```
+
+WSL quick install (Ubuntu/Debian):
+
+```
+bash ./scripts/install_wsl.sh
 ```
 
 ### Building C++ from source
@@ -129,6 +137,11 @@ or, to install in editable mode (for dev):
 
 ```
 python setup.py develop
+```
+
+Modern pip-based install (preferred):
+```
+python -m pip install .
 ```
 
 Python binding tests can be run with `make test`, or with

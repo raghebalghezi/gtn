@@ -8,19 +8,21 @@ LICENSE file in the root directory of this source tree.
 #!/usr/bin/env python3
 
 import os
-import platform
 import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 __version__ = "0.0.1"
+THIS_DIR = Path(__file__).resolve().parent
+REPO_ROOT = THIS_DIR.parent.parent
 
 # Long description from README.md:
 def load_readme():
-    with open("README.md", encoding="utf8") as f:
+    with open(REPO_ROOT / "README.md", encoding="utf8") as f:
         readme = f.read()
     return readme
 
@@ -34,7 +36,13 @@ def get_cmake():
     return "cmake3" if shutil.which("cmake3") is not None else "cmake"
 
 
+def has_windows_compiler():
+    return any(shutil.which(c) is not None for c in ("cl", "clang-cl", "g++"))
+
+
 class CMakeBuild(build_ext):
+    configured = False
+
     def run(self):
         try:
             out = subprocess.check_output([get_cmake(), "--version"])
@@ -46,15 +54,20 @@ class CMakeBuild(build_ext):
 
         cmake_version = re.search(r"version\s*([\d.]+)", out.decode().lower()).group(1)
         cmake_version = [int(i) for i in cmake_version.split(".")]
-        if cmake_version < [3, 5, 1]:
-            raise RuntimeError("CMake >= 3.5.1 is required to build gtn")
+        if cmake_version < [3, 17]:
+            raise RuntimeError("CMake >= 3.17 is required to build gtn")
+        if os.name == "nt" and not has_windows_compiler():
+            raise RuntimeError(
+                "A C/C++ compiler was not found. Install Visual Studio Build Tools "
+                "with the Desktop development with C++ workload, then reopen the shell."
+            )
 
         for ext in self.extensions:
             self.build_extension(ext)
 
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        srcdir = os.path.abspath("src")
+        srcdir = str(REPO_ROOT)
         # required for auto - detection of auxiliary "native" libs
         if not extdir.endswith(os.path.sep):
             extdir += os.path.sep
@@ -68,19 +81,13 @@ class CMakeBuild(build_ext):
             "-DGTN_BUILD_BENCHMARKS=OFF",
             "-DGTN_BUILD_TESTS=OFF",
         ]
+        if shutil.which("ninja") is not None:
+            cmake_args += ["-G", "Ninja"]
 
         cfg = "Debug" if self.debug else "Release"
         build_args = ["--config", cfg]
-
-        if platform.system() == "Windows":
-            # cmake_args += ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), extdir)]
-            # if sys.maxsize > 2 * *32:
-            # cmake_args += ['-A', 'x64']
-            # build_args += ['--', '/m']
-            raise RuntimeError("gtn doesn't support building on Windows yet")
-        else:
-            cmake_args += ["-DCMAKE_BUILD_TYPE=" + cfg]
-            build_args += ["--", "-j4"]
+        cmake_args += ["-DCMAKE_BUILD_TYPE=" + cfg]
+        build_args += ["--parallel", str(os.cpu_count() or 4)]
 
         env = os.environ.copy()
         env["CXXFLAGS"] = '{} -DVERSION_INFO=\\"{}\\"'.format(
@@ -89,12 +96,12 @@ class CMakeBuild(build_ext):
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
         cmake = get_cmake()
-        subprocess.check_call(
-            [cmake, srcdir] + cmake_args, cwd=self.build_temp, env=env
-        )
-        subprocess.check_call(
-            [cmake, "--build", "."] + build_args, cwd=self.build_temp
-        )
+        if not CMakeBuild.configured:
+            subprocess.check_call(
+                [cmake, srcdir] + cmake_args, cwd=self.build_temp, env=env
+            )
+            CMakeBuild.configured = True
+        subprocess.check_call([cmake, "--build", "."] + build_args, cwd=self.build_temp)
 
 
 setup(
@@ -106,7 +113,7 @@ setup(
     long_description=load_readme(),
     long_description_content_type="text/markdown",
     packages=["gtn", "gtn.criterion"],
-    package_dir={"": "src/bindings/python/", "gtn": "src/bindings/python/gtn"},
+    package_dir={"": "."},
     ext_modules=[
         CMakeExtension("gtn.graph"),
         CMakeExtension("gtn.device"),
@@ -115,7 +122,7 @@ setup(
         CMakeExtension("gtn.utils"),
         CMakeExtension("gtn.rand"),
         CMakeExtension("gtn.creations"),
-        CMakeExtension("gtn.criterions"),
+        CMakeExtension("gtn.criterion.criterion"),
         CMakeExtension("gtn.functions"),
         CMakeExtension("gtn.parallel"),
     ],
