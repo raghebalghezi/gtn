@@ -89,6 +89,9 @@ WSL quick install (Ubuntu/Debian):
 bash ./scripts/install_wsl.sh
 ```
 
+If you install manually on WSL, make sure these are present first:
+`build-essential`, `cmake`, `ninja-build`, `python3-dev`, `python3-pip`.
+
 ### Building C++ from source
 
 First, clone the project:

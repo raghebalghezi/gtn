@@ -21,7 +21,7 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 
 echo "[1/4] Installing system build dependencies..."
 sudo apt update
-sudo apt install -y build-essential python3-dev python3-pip
+sudo apt install -y build-essential cmake ninja-build python3-dev python3-pip
 
 echo "[2/4] Upgrading pip..."
 python3 -m pip install --upgrade pip
